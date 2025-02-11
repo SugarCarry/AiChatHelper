@@ -28,8 +28,12 @@ jobs:
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add package.json package-lock.json
-        git commit -m 'Install Google Cloud Speech and Vision dependencies'
-        git push
+        if [[ `git status --porcelain` ]]; then
+          git add package.json package-lock.json
+          git commit -m 'Install Google Cloud Speech and Vision dependencies'
+          git push
+        else
+          echo "No changes to commit"
+        fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
