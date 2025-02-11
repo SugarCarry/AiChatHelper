@@ -2,8 +2,11 @@
   "name": "aichathelper",
   "version": "1.0.0",
   "scripts": {},
-  "dependencies": {},
+  "dependencies": {
+    "@google-cloud/speech": "^6.7.0",
+    "@google-cloud/vision": "^4.3.2"
+  },
   "devDependencies": {
-      "@netlify/edge-functions": "2.2.0"
+    "@netlify/edge-functions": "2.2.0"
   }
 }
