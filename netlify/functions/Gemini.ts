@@ -7,20 +7,12 @@ export default class Gemini extends BaseModel {
   visionClient: any;
 
   constructor(requestModel: string, requestAuthorization: string, requestMessages: any) {
-    // Remove the "Bearer " prefix from the authorization token to extract the API key.
-    const apiKey = requestAuthorization.replace('Bearer ', '');
-    // Log the API key extraction for debugging (be cautious not to expose sensitive data in production)
-    console.log('Extracted API key:', apiKey);
-    
-    // Construct the request URL based on the model.
-    const modelPart = requestModel === "gemini" ? "gemini-pro" : requestModel;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelPart}:generateContent?key=${apiKey}`;
-    console.log('Request URL:', url);
-
-    // Call the BaseModel constructor with the constructed URL.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${
+      requestModel === "gemini" ? "gemini-pro" : requestModel
+    }:generateContent?key=${requestAuthorization.replace('Bearer ', '')}`;
     super(requestModel, requestAuthorization, requestMessages, url);
 
-    // Initialize the Google Cloud clients.
+    // Initialize Google Cloud Speech and Vision clients
     this.speechClient = new speech.SpeechClient();
     this.visionClient = new vision.ImageAnnotatorClient();
   }
@@ -29,7 +21,6 @@ export default class Gemini extends BaseModel {
     if (!this.headers) {
       this.headers = { 'Content-Type': 'application/json' };
     }
-    console.log('Formatted Headers:', this.headers);
   }
 
   protected formatBody(requestMessages: any) {
@@ -37,39 +28,45 @@ export default class Gemini extends BaseModel {
       this.body = {};
     }
 
-    let formattedMessages: { role: string; parts: { text: string }[] }[] = [];
-    requestMessages.forEach((item: { role: string; content: string }, index: number) => {
+    let formattedMessages: { role: string, parts: { text: string }[] }[] = [];
+    requestMessages.forEach((item: { role: string, content: string }, index: number) => {
       if (index === 0) {
         formattedMessages.push(
           {
             role: 'user',
-            parts: [{ text: item.content }],
+            parts: [{
+              text: item.content,
+            }],
           },
           {
             role: 'model',
-            parts: [{ text: '好的' }],
+            parts: [{
+              text: '好的',
+            }],
           }
         );
       } else if (index === 1 && item.role === 'assistant') {
-        // Skip the second message if it's from the assistant.
+        // Ignore the second message if it's from the assistant.
       } else {
         formattedMessages.push({
           role: item.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: item.content }],
+          parts: [{
+            text: item.content,
+          }],
         });
       }
     });
 
-    // Append an additional message prompt.
+    // Append an additional prompt.
     formattedMessages.push({
       role: 'user',
-      parts: [{ text: 'prompt: research in english，respond in Chinese' }],
+      parts: [{
+        text: 'prompt: research in english，respond in Chinese',
+      }],
     });
 
     this.messages = formattedMessages;
-    console.log('Formatted Messages:', this.messages);
 
-    // Build the request body according to model types.
     if (['gemini-2.0-flash-exp', 'gemini-2.0-flash', 'gemini-2.0-pro-exp'].includes(this.model)) {
       this.body = {
         contents: this.messages,
@@ -81,9 +78,7 @@ export default class Gemini extends BaseModel {
         ],
         tools: [
           {
-            googleSearch: {},
-            googleSpeech: {},
-            googleVision: {}
+            googleSearch: {}
           }
         ]
       };
@@ -98,11 +93,10 @@ export default class Gemini extends BaseModel {
         ]
       };
     }
-    
-    console.log('Request Body:', JSON.stringify(this.body, null, 2));
   }
 
-  async recognizeSpeech(audioBuffer: Buffer) {
+  // Method to perform speech recognition using Google Cloud Speech API.
+  async recognizeSpeech(audioBuffer: Buffer): Promise<string> {
     const audio = {
       content: audioBuffer.toString('base64'),
     };
@@ -112,34 +106,41 @@ export default class Gemini extends BaseModel {
       config: {
         encoding: 'LINEAR16',
         sampleRateHertz: 16000,
-        languageCode: 'en-US',
+        languageCode: 'zh-CN',
       },
     };
 
-    // Log the speech request configuration
-    console.log('Speech Request:', request);
-
-    const [response] = await this.speechClient.recognize(request);
-    const transcription = response.results
-      .map((result: any) => result.alternatives[0].transcript)
-      .join('\n');
-    return transcription;
+    try {
+      const [response] = await this.speechClient.recognize(request);
+      const transcription = response.results
+        .map((result: any) => result.alternatives[0].transcript)
+        .join('\n');
+      return transcription;
+    } catch (error) {
+      console.error('Speech recognition error:', error);
+      throw error;
+    }
   }
 
-  async recognizeImage(imageBuffer: Buffer) {
+  // Method to perform image recognition using Google Cloud Vision API.
+  async recognizeImage(imageBuffer: Buffer): Promise<string> {
     const request = {
-      image: { content: imageBuffer.toString('base64') },
+      image: {
+        content: imageBuffer.toString('base64'),
+      },
     };
 
-    // Log the image request configuration
-    console.log('Image Request:', request);
-
-    const [result] = await this.visionClient.labelDetection(request);
-    const labels = result.labelAnnotations;
-    return labels.map((label: any) => label.description).join(', ');
+    try {
+      const [result] = await this.visionClient.labelDetection(request);
+      const labels = result.labelAnnotations;
+      return labels.map((label: any) => label.description).join(', ');
+    } catch (error) {
+      console.error('Image recognition error:', error);
+      throw error;
+    }
   }
 
-  handleResponse(responseData: any) {
+  handleResponse(responseData: any): string {
     if (responseData.candidates && responseData.candidates.length > 0) {
       if (
         responseData.candidates[0].content &&
