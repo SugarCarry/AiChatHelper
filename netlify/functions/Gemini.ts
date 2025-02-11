@@ -7,10 +7,20 @@ export default class Gemini extends BaseModel {
   visionClient: any;
 
   constructor(requestModel: string, requestAuthorization: string, requestMessages: any) {
-    // Construct the URL by replacing the "Bearer " prefix from the authorization string.
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${requestModel === "gemini" ? "gemini-pro" : requestModel}:generateContent?key=${requestAuthorization.replace('Bearer ', '')}`;
+    // Remove the "Bearer " prefix from the authorization token to extract the API key.
+    const apiKey = requestAuthorization.replace('Bearer ', '');
+    // Log the API key extraction for debugging (be cautious not to expose sensitive data in production)
+    console.log('Extracted API key:', apiKey);
+    
+    // Construct the request URL based on the model.
+    const modelPart = requestModel === "gemini" ? "gemini-pro" : requestModel;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelPart}:generateContent?key=${apiKey}`;
+    console.log('Request URL:', url);
+
+    // Call the BaseModel constructor with the constructed URL.
     super(requestModel, requestAuthorization, requestMessages, url);
 
+    // Initialize the Google Cloud clients.
     this.speechClient = new speech.SpeechClient();
     this.visionClient = new vision.ImageAnnotatorClient();
   }
@@ -19,7 +29,7 @@ export default class Gemini extends BaseModel {
     if (!this.headers) {
       this.headers = { 'Content-Type': 'application/json' };
     }
-    console.log('Headers:', this.headers);
+    console.log('Formatted Headers:', this.headers);
   }
 
   protected formatBody(requestMessages: any) {
@@ -41,7 +51,7 @@ export default class Gemini extends BaseModel {
           }
         );
       } else if (index === 1 && item.role === 'assistant') {
-        // Ignore the second message if it's from the assistant.
+        // Skip the second message if it's from the assistant.
       } else {
         formattedMessages.push({
           role: item.role === 'assistant' ? 'model' : 'user',
@@ -50,7 +60,7 @@ export default class Gemini extends BaseModel {
       }
     });
 
-    // Append an additional prompt message.
+    // Append an additional message prompt.
     formattedMessages.push({
       role: 'user',
       parts: [{ text: 'prompt: research in english，respond in Chinese' }],
@@ -59,6 +69,7 @@ export default class Gemini extends BaseModel {
     this.messages = formattedMessages;
     console.log('Formatted Messages:', this.messages);
 
+    // Build the request body according to model types.
     if (['gemini-2.0-flash-exp', 'gemini-2.0-flash', 'gemini-2.0-pro-exp'].includes(this.model)) {
       this.body = {
         contents: this.messages,
@@ -87,7 +98,8 @@ export default class Gemini extends BaseModel {
         ]
       };
     }
-    console.log('Request Body:', this.body);
+    
+    console.log('Request Body:', JSON.stringify(this.body, null, 2));
   }
 
   async recognizeSpeech(audioBuffer: Buffer) {
@@ -104,6 +116,9 @@ export default class Gemini extends BaseModel {
       },
     };
 
+    // Log the speech request configuration
+    console.log('Speech Request:', request);
+
     const [response] = await this.speechClient.recognize(request);
     const transcription = response.results
       .map((result: any) => result.alternatives[0].transcript)
@@ -115,6 +130,9 @@ export default class Gemini extends BaseModel {
     const request = {
       image: { content: imageBuffer.toString('base64') },
     };
+
+    // Log the image request configuration
+    console.log('Image Request:', request);
 
     const [result] = await this.visionClient.labelDetection(request);
     const labels = result.labelAnnotations;
