@@ -70,7 +70,7 @@ export default class Gemini extends BaseModel {
                     { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
                     { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
                 ],
-                "tools": [{  // 添加 tools 参数，增加谷歌搜索功能, 感谢 @SugarCarry 的贡献  
+                "tools": [{  // 添加 tools 参数，增加谷歌搜索功能, 感谢 @SugarCarry 的贡献   
                     "googleSearch": {},
                     "googleSpeech": {},
                     "googleVision": {}
