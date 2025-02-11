@@ -1,9 +1,17 @@
 import BaseModel from './BaseModel';
+import speech from '@google-cloud/speech';
+import vision from '@google-cloud/vision';
 
 export default class Gemini extends BaseModel {
+    speechClient: any;
+    visionClient: any;
+
     constructor(requestModel: string, requestAuthorization: string, requestMessages: any) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${requestModel === "gemini" ? "gemini-pro" : requestModel}:generateContent?key=${requestAuthorization.replace('Bearer ', '')}`;
         super(requestModel, requestAuthorization, requestMessages, url);
+
+        this.speechClient = new speech.SpeechClient();
+        this.visionClient = new vision.ImageAnnotatorClient();
     }
 
     protected formatHeaders() {
@@ -62,8 +70,10 @@ export default class Gemini extends BaseModel {
                     { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
                     { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
                 ],
-                "tools": [{  // 添加 tools 参数，增加谷歌搜索功能, 感谢 @SugarCarry 的贡献
-                    "googleSearch": {}
+                "tools": [{  
+                    "googleSearch": {},
+                    "googleSpeech": {},
+                    "googleVision": {}
                 }]
             };
         } else {
@@ -77,6 +87,35 @@ export default class Gemini extends BaseModel {
                 ]
             };
         }
+    }
+
+    async recognizeSpeech(audioBuffer: Buffer) {
+        const audio = {
+            content: audioBuffer.toString('base64'),
+        };
+
+        const request = {
+            audio: audio,
+            config: {
+                encoding: 'LINEAR16',
+                sampleRateHertz: 16000,
+                languageCode: 'en-US',
+            },
+        };
+
+        const [response] = await this.speechClient.recognize(request);
+        const transcription = response.results.map((result: any) => result.alternatives[0].transcript).join('\n');
+        return transcription;
+    }
+
+    async recognizeImage(imageBuffer: Buffer) {
+        const request = {
+            image: { content: imageBuffer.toString('base64') },
+        };
+
+        const [result] = await this.visionClient.labelDetection(request);
+        const labels = result.labelAnnotations;
+        return labels.map((label: any) => label.description).join(', ');
     }
 
     handleResponse(responseData: any) {
